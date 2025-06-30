@@ -24,29 +24,38 @@ type DataChannelMessage struct {
 
 func main() {
 	// Define and parse the remote address flag
-	addr := flag.String("addr", "127.0.0.1:12345", "remote UDP address")
+	remote_addr := flag.String("raddr", "127.0.0.1:12345", "remote UDP address")
+	local_addr := flag.String("laddr", "0.0.0.0:9000", "local UDP address")
+	bufferSize := flag.Int("buffer", 700, "Buffer size for incoming messages")
+
 	flag.Parse()
 
 	// Resolve the remote address
-	raddr, err := net.ResolveUDPAddr("udp", *addr)
+	raddr, err := net.ResolveUDPAddr("udp", *remote_addr)
+	if err != nil {
+		fmt.Println("Failed to resolve address:", err)
+		os.Exit(1)
+	}
+	// Resolve the local address
+	laddr, err := net.ResolveUDPAddr("udp", *local_addr)
 	if err != nil {
 		fmt.Println("Failed to resolve address:", err)
 		os.Exit(1)
 	}
 
 	// Open a UDP connection
-	conn, err := net.DialUDP("udp", nil, raddr)
+	conn, err := net.DialUDP("udp", laddr, raddr)
 	if err != nil {
 		fmt.Println("Failed to dial UDP:", err)
 		os.Exit(1)
 	}
 	defer conn.Close()
 
-	payloadBytes := make([]byte, 100) // 120000 bytes = 120 KB payload
+	payloadBytes := make([]byte, *bufferSize) // 120000 bytes = 120 KB payload
 	frameID := 1
 	lastMessageTime := time.Now().UnixMilli()
 	// Create a ticker with a 33ms interval
-	ticker := time.NewTicker(10 * time.Millisecond)
+	ticker := time.NewTicker(500 * time.Microsecond)
 	defer ticker.Stop()
 	// Example object to send
 
@@ -77,7 +86,8 @@ func main() {
 		}
 
 		// Send the JSON payload
-		fmt.Println("Sending:", len(data), message.MessageSendRate, "ms", message.FrameID)
+		fmt.Println("Sending:", len(data), message.MessageSendRate, "ms", message.FrameID, "from", conn.LocalAddr(), "to", conn.RemoteAddr())
+
 		_, err = conn.Write(data)
 		if err != nil {
 			fmt.Println("Error sending message:", err)
